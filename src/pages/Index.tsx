@@ -1,6 +1,7 @@
 import DataStreamOverlay from '@/components/DataStreamOverlay';
 import HeroSection from '@/components/HeroSection';
 import FeaturesSection from '@/components/FeaturesSection';
+import StorytellingAnimation from '@/components/StorytellingAnimation';
 import ProcessSection from '@/components/ProcessSection';
 import AboutSection from '@/components/AboutSection';
 import ContactSection from '@/components/ContactSection';
@@ -12,6 +13,7 @@ const Index = () => {
       <DataStreamOverlay />
       <HeroSection />
       <FeaturesSection />
+      <StorytellingAnimation />
       <ProcessSection />
       <AboutSection />
       <ContactSection />

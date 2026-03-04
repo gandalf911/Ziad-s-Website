@@ -1,61 +1,153 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import anime from 'animejs';
 
+/* ─── Node definitions ─── */
+const nodes = [
+  {
+    id: 'webhook',
+    title: 'Webhook',
+    subtitle: 'Trigger',
+    color: '#22C55E',
+    icon: '⚡',
+    x: 60,
+    y: 195,
+  },
+  {
+    id: 'router',
+    title: 'Switch',
+    subtitle: 'Route by type',
+    color: '#8B5CF6',
+    icon: '⑂',
+    x: 340,
+    y: 195,
+  },
+  {
+    id: 'hubspot',
+    title: 'HubSpot',
+    subtitle: 'Create Contact',
+    color: '#F97316',
+    icon: '🔶',
+    x: 620,
+    y: 100,
+  },
+  {
+    id: 'slack',
+    title: 'Slack',
+    subtitle: 'Send Message',
+    color: '#3B82F6',
+    icon: '💬',
+    x: 620,
+    y: 290,
+  },
+];
+
+/* ─── Bubble data ─── */
 const bubbles = [
-  { text: 'Can we add a portal?', position: 'top-4 left-4 sm:top-8 sm:left-8' },
-  { text: 'Make it pop more!', position: 'top-4 right-4 sm:top-8 sm:right-8' },
-  { text: 'Actually, undo that.', position: 'bottom-16 left-4 sm:bottom-20 sm:left-8' },
-  { text: 'Wait, what if we...', position: 'bottom-16 right-4 sm:bottom-20 sm:right-8' },
+  { text: 'Can we add a portal?', pos: 'top-2 left-2 sm:top-4 sm:left-4' },
+  { text: 'Make it pop more!', pos: 'top-2 right-2 sm:top-4 sm:right-4' },
+  { text: 'Actually, undo that.', pos: 'bottom-12 left-2 sm:bottom-16 sm:left-4' },
+  { text: 'Wait, what if we...', pos: 'bottom-12 right-2 sm:bottom-16 sm:right-4' },
+];
+
+/* ─── Geometry helpers ─── */
+const NODE_W = 220;
+const NODE_H = 72;
+const HANDLE_R = 7;
+
+// Output handle center (right edge, vertically centered)
+const outX = (n: typeof nodes[0]) => n.x + NODE_W;
+const outY = (n: typeof nodes[0]) => n.y + NODE_H / 2;
+
+// Input handle center (left edge, vertically centered)
+const inX = (n: typeof nodes[0]) => n.x;
+const inY = (n: typeof nodes[0]) => n.y + NODE_H / 2;
+
+// Smooth bezier between two handles
+const wirePath = (from: typeof nodes[0], to: typeof nodes[0]) => {
+  const sx = outX(from);
+  const sy = outY(from);
+  const ex = inX(to);
+  const ey = inY(to);
+  const dx = (ex - sx) * 0.5;
+  return `M ${sx} ${sy} C ${sx + dx} ${sy}, ${ex - dx} ${ey}, ${ex} ${ey}`;
+};
+
+// Distorted wire (for chaos beats)
+const distortedWirePath = (from: typeof nodes[0], to: typeof nodes[0], chaos: number) => {
+  const sx = outX(from);
+  const sy = outY(from);
+  const ex = inX(to);
+  const ey = inY(to);
+  const dx = (ex - sx) * 0.5;
+  const rand = () => (Math.random() - 0.5) * chaos;
+  return `M ${sx} ${sy} C ${sx + dx + rand()} ${sy + rand()}, ${ex - dx + rand()} ${ey + rand()}, ${ex} ${ey}`;
+};
+
+/* ─── Wires ─── */
+const wires = [
+  { from: 'webhook', to: 'router' },
+  { from: 'router', to: 'hubspot' },
+  { from: 'router', to: 'slack' },
 ];
 
 const StorytellingAnimation = () => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const timelineRef = useRef<anime.AnimeTimelineInstance | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const getNode = useCallback((id: string) => nodes.find((n) => n.id === id)!, []);
+
+  const cleanupAnimations = useCallback(() => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    const el = containerRef.current;
+    if (el) anime.remove(el.querySelectorAll('*'));
+  }, []);
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     const runAnimation = () => {
-      // Reset all elements
+      // -- Grab DOM refs --
       const allBubbles = el.querySelectorAll('.speech-bubble');
-      const blueprint = el.querySelector('.blueprint-container');
-      const finalProduct = el.querySelector('.final-product');
-      const nodeLogic = el.querySelectorAll('.node-logic');
-      const nodeAction = el.querySelectorAll('.node-action');
-      const nodeTrigger = el.querySelector('.node-trigger');
-      const blueprintLines = el.querySelectorAll('.line-path');
-      const allRects = el.querySelectorAll('.blueprint-nodes rect');
+      const nodeDivs = el.querySelectorAll('.n8n-node');
+      const wirePaths = el.querySelectorAll('.wire-path');
+      const dots = el.querySelectorAll('.travel-dot');
+      const errorBadge = el.querySelector('.error-badge');
+      const successBadge = el.querySelector('.success-badge');
 
-      // Reset state
+      // -- Reset everything --
       anime.set(allBubbles, { opacity: 0, scale: 0, translateY: 0 });
-      anime.set(finalProduct, { opacity: 0, scale: 0.9 });
-      anime.set(blueprint, { opacity: 1, scale: 1, translateX: 0, scaleX: 1 });
-      anime.set(nodeLogic, { translateY: 0, scale: 1 });
-      anime.set(nodeAction, { translateY: 0, scale: 1 });
-      anime.set(nodeTrigger, { translateY: 0, scale: 1 });
-      anime.set(blueprintLines, { stroke: '#4B5563', strokeDasharray: '6 6' });
-      anime.set(allRects, { stroke: '' }); // reset to original
+      anime.set(nodeDivs, { translateX: 0, translateY: 0, scale: 1 });
+      anime.set(dots, { opacity: 0 });
+      anime.set(errorBadge, { opacity: 0, scale: 0 });
+      anime.set(successBadge, { opacity: 0, scale: 0 });
 
-      // Restore original strokes
-      el.querySelectorAll('.node-logic rect').forEach(r => {
-        (r as SVGElement).style.stroke = '#6B7280';
-        (r as SVGElement).style.strokeDasharray = '4 4';
+      // Reset wire paths and colors
+      wirePaths.forEach((path, i) => {
+        const wire = wires[i];
+        const from = getNode(wire.from);
+        const to = getNode(wire.to);
+        path.setAttribute('d', wirePath(from, to));
+        (path as SVGPathElement).style.stroke = '#4B5563';
+        (path as SVGPathElement).style.strokeDasharray = '0';
       });
-      el.querySelectorAll('.node-action rect').forEach(r => {
-        (r as SVGElement).style.stroke = '#6B7280';
-        (r as SVGElement).style.strokeDasharray = '0';
+
+      // Reset node border colors
+      nodeDivs.forEach((div) => {
+        const node = nodes.find((n) => n.id === (div as HTMLElement).dataset.nodeId);
+        if (node) {
+          (div as HTMLElement).style.borderLeftColor = node.color;
+        }
       });
-      (el.querySelector('.node-trigger rect') as SVGElement | null)?.style.setProperty('stroke', '#85c9bd');
 
       const tl = anime.timeline({
         easing: 'easeOutExpo',
         complete: () => {
-          setTimeout(runAnimation, 3000);
+          timeoutRef.current = setTimeout(runAnimation, 3000);
         },
       });
 
-      // Beat 1: Bubble 1 + nodes shift
+      // ── Beat 1: Bubble 1 + nodes shift ──
       tl.add({
         targets: allBubbles[0],
         opacity: [0, 1],
@@ -64,72 +156,85 @@ const StorytellingAnimation = () => {
         easing: 'easeOutElastic(1, .5)',
       })
         .add({
-          targets: nodeLogic[0],
-          translateY: [0, -15],
-          scale: [1, 1.05],
-          duration: 400,
-          easing: 'easeOutQuad',
+          targets: nodeDivs[2], // hubspot
+          translateY: [0, -18],
+          translateX: [0, 12],
+          duration: 500,
         }, '-=400')
         .add({
-          targets: nodeAction[1],
-          translateY: [0, 20],
-          scale: [1, 0.95],
-          duration: 400,
-          easing: 'easeOutQuad',
+          targets: nodeDivs[3], // slack
+          translateY: [0, 14],
+          translateX: [0, -8],
+          duration: 500,
         }, '-=400')
+        .add({
+          targets: wirePaths,
+          strokeDasharray: ['0', '8 6'],
+          duration: 300,
+          easing: 'linear',
+        }, '-=300')
 
-        // Beat 2: Bubble 2 + stretch + orange borders
+        // ── Beat 2: Bubble 2 + more chaos + orange wires ──
         .add({
           targets: allBubbles[1],
           opacity: [0, 1],
           scale: [0, 1],
           duration: 600,
           easing: 'easeOutElastic(1, .5)',
-        }, '+=300')
+        }, '+=400')
         .add({
-          targets: blueprint,
-          scaleX: [1, 1.05],
+          targets: nodeDivs[1], // router
+          translateY: [0, 22],
+          translateX: [0, -15],
           duration: 500,
-          easing: 'easeOutQuad',
         }, '-=400')
         .add({
-          targets: el.querySelectorAll('.node-logic rect, .node-action rect'),
+          targets: nodeDivs[2], // hubspot
+          translateY: [-18, -30],
+          translateX: [12, 25],
+          duration: 500,
+        }, '-=400')
+        .add({
+          targets: wirePaths,
           stroke: '#F97316',
-          strokeDasharray: '8 4',
           duration: 400,
           easing: 'linear',
         }, '-=300')
 
-        // Beat 3: Bubble 3 + layout flip + red borders
+        // ── Beat 3: Bubble 3 + layout goes haywire + red ──
         .add({
           targets: allBubbles[2],
           opacity: [0, 1],
           scale: [0, 1],
           duration: 600,
           easing: 'easeOutElastic(1, .5)',
-        }, '+=300')
+        }, '+=400')
         .add({
-          targets: nodeLogic,
-          translateY: () => anime.random(-30, 30),
-          scale: () => anime.random(85, 115) / 100,
+          targets: nodeDivs[0], // webhook
+          translateY: [0, 15],
+          translateX: [0, 10],
           duration: 500,
-          easing: 'easeOutQuad',
         }, '-=400')
         .add({
-          targets: nodeAction,
-          translateY: () => anime.random(-25, 25),
-          scale: () => anime.random(90, 110) / 100,
+          targets: nodeDivs[3], // slack
+          translateY: [14, -20],
+          translateX: [-8, 30],
           duration: 500,
-          easing: 'easeOutQuad',
         }, '-=400')
         .add({
-          targets: el.querySelectorAll('.node-logic rect, .node-action rect'),
+          targets: wirePaths,
           stroke: '#EF4444',
           duration: 300,
           easing: 'linear',
-        }, '-=300')
+        }, '-=200')
+        .add({
+          targets: Array.from(nodeDivs),
+          borderLeftColor: '#EF4444',
+          duration: 300,
+          easing: 'linear',
+        }, '-=200')
 
-        // Beat 4: Bubble 4 + vibration + flashing lines
+        // ── Beat 4: Bubble 4 + vibration + error badge ──
         .add({
           targets: allBubbles[3],
           opacity: [0, 1],
@@ -138,70 +243,106 @@ const StorytellingAnimation = () => {
           easing: 'easeOutElastic(1, .5)',
         }, '+=200')
         .add({
-          targets: blueprint,
-          translateX: [-5, 5],
+          targets: nodeDivs,
+          translateX: [-4, 4],
           direction: 'alternate',
-          loop: 10,
+          loop: 8,
           duration: 50,
           easing: 'linear',
         }, '-=200')
         .add({
-          targets: blueprintLines,
-          stroke: [
-            { value: '#EF4444', duration: 80 },
-            { value: '#6B7280', duration: 80 },
-            { value: '#EF4444', duration: 80 },
-            { value: '#6B7280', duration: 80 },
-            { value: '#EF4444', duration: 80 },
-          ],
-          easing: 'linear',
-        }, '-=500')
+          targets: errorBadge,
+          opacity: [0, 1],
+          scale: [0, 1],
+          duration: 400,
+          easing: 'easeOutElastic(1, .6)',
+        }, '-=300')
 
-        // Beat 5: Reject all bubbles + dim blueprint
+        // ── Beat 5: Reject bubbles + snap back ──
         .add({
           targets: allBubbles,
-          translateY: [0, 200],
+          translateY: [0, 250],
           opacity: [1, 0],
-          duration: 400,
+          duration: 500,
           easing: 'easeInQuad',
-          delay: anime.stagger(50),
+          delay: anime.stagger(60),
+        }, '+=300')
+        .add({
+          targets: errorBadge,
+          opacity: [1, 0],
+          scale: [1, 0],
+          duration: 300,
+        }, '-=300')
+        .add({
+          targets: nodeDivs,
+          translateX: 0,
+          translateY: 0,
+          scale: 1,
+          duration: 800,
+          easing: 'easeOutExpo',
+        }, '-=200')
+        .add({
+          targets: wirePaths,
+          stroke: '#4B5563',
+          strokeDasharray: '0',
+          duration: 400,
+          easing: 'linear',
+        }, '-=600')
+
+        // ── Beat 6: Resolution — green wires + travelling dots ──
+        .add({
+          targets: Array.from(nodeDivs),
+          borderLeftColor: (el: HTMLElement) => {
+            const node = nodes.find((n) => n.id === el.dataset.nodeId);
+            return node?.color || '#85c9bd';
+          },
+          duration: 600,
+          easing: 'linear',
         }, '+=200')
         .add({
-          targets: blueprint,
-          scale: [1, 0.92],
-          opacity: [1, 0.4],
-          translateX: 0,
-          duration: 600,
-          easing: 'easeOutQuad',
-        }, '-=200')
-
-        // Beat 6: Resolution — blueprint fades, final product appears
-        .add({
-          targets: blueprint,
-          opacity: [0.4, 0],
+          targets: wirePaths,
+          stroke: '#85c9bd',
           duration: 800,
-          easing: 'easeOutQuad',
-        }, '+=400')
-        .add({
-          targets: finalProduct,
-          opacity: [0, 1],
-          scale: [0.9, 1],
-          duration: 2000,
           easing: 'easeOutExpo',
-        }, '-=600');
+        }, '-=600')
+        .add({
+          targets: successBadge,
+          opacity: [0, 1],
+          scale: [0, 1],
+          duration: 500,
+          easing: 'easeOutElastic(1, .6)',
+        }, '-=400');
 
-      timelineRef.current = tl;
+      // Animate dots along paths after timeline reaches Beat 6
+      const timelineDuration = tl.duration;
+      const dotDelay = timelineDuration - 1200;
+
+      dots.forEach((dot, i) => {
+        const pathEl = wirePaths[i] as SVGPathElement;
+        if (!pathEl) return;
+
+        const pathObj = anime.path(pathEl);
+        anime({
+          targets: dot,
+          translateX: pathObj('x'),
+          translateY: pathObj('y'),
+          opacity: [
+            { value: 1, duration: 100, delay: dotDelay },
+            { value: 0, duration: 100, delay: 1200 },
+          ],
+          easing: 'linear',
+          duration: 1400,
+          delay: dotDelay + i * 200,
+        });
+      });
     };
 
     runAnimation();
 
     return () => {
-      if (timelineRef.current) {
-        timelineRef.current.pause();
-      }
-      anime.remove(el.querySelectorAll('*'));
+      cleanupAnimations();
     };
-  }, []);
+  }, [getNode, cleanupAnimations]);
 
   return (
     <section className="py-24 sm:py-32 px-4 relative overflow-hidden">
@@ -213,209 +354,247 @@ const StorytellingAnimation = () => {
           From Chaos to Clarity
         </h2>
 
+        {/* ─── Canvas Container ─── */}
         <div
           ref={containerRef}
-          className="relative w-full aspect-[17/10] max-h-[560px] mx-auto"
+          className="relative w-full overflow-hidden rounded-xl border border-border"
+          style={{
+            background: '#1A1B23',
+            backgroundImage:
+              'radial-gradient(circle, #2a2b35 1px, transparent 1px)',
+            backgroundSize: '24px 24px',
+            aspectRatio: '16 / 9',
+          }}
         >
-          {/* Speech Bubbles */}
-          {bubbles.map((bubble, i) => (
+          {/* ─── Speech Bubbles (z-30) ─── */}
+          {bubbles.map((b, i) => (
             <div
               key={i}
-              className={`speech-bubble absolute ${bubble.position} z-20 opacity-0`}
+              className={`speech-bubble absolute ${b.pos} z-30 opacity-0`}
               style={{ transform: 'scale(0)' }}
             >
-              <div className="bg-card border border-border rounded-lg px-3 py-2 sm:px-4 sm:py-2.5 shadow-lg max-w-[160px] sm:max-w-[200px]">
-                <p className="text-foreground text-xs sm:text-sm font-medium leading-snug">
-                  {bubble.text}
+              <div className="bg-[#252836] border border-[#3a3b48] rounded-lg px-3 py-2 sm:px-4 sm:py-2.5 shadow-xl max-w-[150px] sm:max-w-[190px]">
+                <p className="text-[#E5E7EB] text-[11px] sm:text-xs font-medium leading-snug">
+                  {b.text}
                 </p>
                 <div
-                  className={`absolute w-3 h-3 bg-card border-border rotate-45 ${
+                  className={`absolute w-2.5 h-2.5 bg-[#252836] border-[#3a3b48] rotate-45 ${
                     i < 2
-                      ? 'bottom-[-7px] left-6 border-b border-r'
-                      : 'top-[-7px] left-6 border-t border-l'
+                      ? 'bottom-[-6px] left-5 border-b border-r'
+                      : 'top-[-6px] left-5 border-t border-l'
                   }`}
                 />
               </div>
             </div>
           ))}
 
-          {/* Blueprint (SVG) */}
-          <div className="blueprint-container absolute inset-0 flex items-center justify-center">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 850 500"
-              className="w-full h-full"
-            >
-              <defs>
-                <marker
-                  id="arrowhead"
-                  markerWidth="10"
-                  markerHeight="7"
-                  refX="9"
-                  refY="3.5"
-                  orient="auto"
-                >
-                  <polygon points="0 0, 10 3.5, 0 7" fill="#4B5563" />
-                </marker>
-              </defs>
-
-              <g
-                className="blueprint-lines"
-                fill="none"
-                stroke="#4B5563"
-                strokeWidth="2"
-                strokeDasharray="6 6"
-                markerEnd="url(#arrowhead)"
-              >
-                <path className="line-path" d="M 200 250 C 300 250, 300 150, 400 150" />
-                <path className="line-path" d="M 200 250 C 300 250, 300 350, 400 350" />
-                <path className="line-path" d="M 550 150 L 650 150" />
-                <path className="line-path" d="M 550 350 L 650 350" />
-              </g>
-
-              <g className="blueprint-nodes">
-                <g className="node-trigger" transform="translate(50, 210)">
-                  <rect width="150" height="80" rx="8" fill="#111827" stroke="#85c9bd" strokeWidth="2" />
-                  <circle cx="25" cy="40" r="6" fill="#85c9bd" />
-                  <text x="45" y="45" fill="#E5E7EB" fontFamily="sans-serif" fontWeight="600" fontSize="14">
-                    Webhook Event
-                  </text>
-                </g>
-
-                <g className="node-logic" transform="translate(400, 110)">
-                  <rect width="150" height="80" rx="8" fill="#111827" stroke="#6B7280" strokeWidth="2" strokeDasharray="4 4" />
-                  <polygon points="25,35 35,25 45,35 35,45" fill="#9CA3AF" />
-                  <text x="55" y="45" fill="#9CA3AF" fontFamily="sans-serif" fontSize="14">
-                    Filter: Lead
-                  </text>
-                </g>
-
-                <g className="node-logic" transform="translate(400, 310)">
-                  <rect width="150" height="80" rx="8" fill="#111827" stroke="#6B7280" strokeWidth="2" strokeDasharray="4 4" />
-                  <polygon points="25,35 35,25 45,35 35,45" fill="#9CA3AF" />
-                  <text x="55" y="45" fill="#9CA3AF" fontFamily="sans-serif" fontSize="14">
-                    Filter: Agent
-                  </text>
-                </g>
-
-                <g className="node-action" transform="translate(650, 110)">
-                  <rect width="150" height="80" rx="8" fill="#111827" stroke="#6B7280" strokeWidth="2" />
-                  <rect x="20" y="32" width="16" height="16" rx="3" fill="#9CA3AF" />
-                  <text x="45" y="45" fill="#E5E7EB" fontFamily="sans-serif" fontSize="14">
-                    Sync CRM
-                  </text>
-                </g>
-
-                <g className="node-action" transform="translate(650, 310)">
-                  <rect width="150" height="80" rx="8" fill="#111827" stroke="#6B7280" strokeWidth="2" />
-                  <rect x="20" y="32" width="16" height="16" rx="3" fill="#9CA3AF" />
-                  <text x="45" y="45" fill="#E5E7EB" fontFamily="sans-serif" fontSize="14">
-                    Update Portal
-                  </text>
-                </g>
-              </g>
-            </svg>
-          </div>
-
-          {/* Final Product Overlay */}
-          <div
-            className="final-product absolute inset-0 flex items-center justify-center opacity-0"
-            style={{ transform: 'scale(0.9)' }}
+          {/* ─── SVG Wires (z-0) ─── */}
+          <svg
+            className="absolute inset-0 w-full h-full"
+            viewBox="0 0 900 500"
+            preserveAspectRatio="xMidYMid meet"
+            style={{ zIndex: 0 }}
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 850 500"
-              className="w-full h-full"
-            >
-              <defs>
-                <marker
-                  id="arrowhead-final"
-                  markerWidth="10"
-                  markerHeight="7"
-                  refX="9"
-                  refY="3.5"
-                  orient="auto"
-                >
-                  <polygon points="0 0, 10 3.5, 0 7" fill="#85c9bd" />
-                </marker>
-                <filter id="glow-final" x="-30%" y="-30%" width="160%" height="160%">
-                  <feGaussianBlur stdDeviation="6" result="blur" />
-                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                </filter>
-              </defs>
+            {wires.map((wire, i) => {
+              const from = getNode(wire.from);
+              const to = getNode(wire.to);
+              return (
+                <path
+                  key={i}
+                  className="wire-path"
+                  d={wirePath(from, to)}
+                  fill="none"
+                  stroke="#4B5563"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                />
+              );
+            })}
 
-              {/* Solid connection lines */}
-              <g
-                fill="none"
-                stroke="#85c9bd"
-                strokeWidth="2"
-                strokeDasharray="0"
-                markerEnd="url(#arrowhead-final)"
-                opacity="0.7"
+            {/* Travelling dots */}
+            {wires.map((_, i) => (
+              <circle
+                key={`dot-${i}`}
+                className="travel-dot"
+                r="5"
+                fill="#85c9bd"
+                opacity="0"
+                style={{ filter: 'drop-shadow(0 0 6px #85c9bd)' }}
+              />
+            ))}
+          </svg>
+
+          {/* ─── Nodes (z-10) ─── */}
+          <div
+            className="absolute inset-0"
+            style={{ zIndex: 10 }}
+          >
+            <div className="relative w-full h-full">
+              {/* We use a viewBox-like scaling approach */}
+              <div
+                className="absolute inset-0 origin-top-left"
+                style={{
+                  /* Scale the 900x500 coordinate space to fill the container */
+                  width: '900px',
+                  height: '500px',
+                  transform: 'scale(var(--canvas-scale, 1))',
+                  transformOrigin: 'top left',
+                }}
               >
-                <path d="M 200 250 C 300 250, 300 150, 400 150" />
-                <path d="M 200 250 C 300 250, 300 350, 400 350" />
-                <path d="M 550 150 L 650 150" />
-                <path d="M 550 350 L 650 350" />
-              </g>
+                {nodes.map((node) => (
+                  <div
+                    key={node.id}
+                    data-node-id={node.id}
+                    className="n8n-node absolute"
+                    style={{
+                      left: `${node.x}px`,
+                      top: `${node.y}px`,
+                      width: `${NODE_W}px`,
+                      height: `${NODE_H}px`,
+                      background: '#252836',
+                      borderRadius: '8px',
+                      borderLeft: `4px solid ${node.color}`,
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '0 14px',
+                      gap: '12px',
+                    }}
+                  >
+                    {/* Input handle */}
+                    <div
+                      className="absolute rounded-full bg-[#3a3b48] border-2 border-[#4B5563]"
+                      style={{
+                        width: `${HANDLE_R * 2}px`,
+                        height: `${HANDLE_R * 2}px`,
+                        left: `-${HANDLE_R}px`,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                      }}
+                    />
 
-              {/* Nodes — polished */}
-              <g filter="url(#glow-final)">
-                <g transform="translate(50, 210)">
-                  <rect width="150" height="80" rx="8" fill="#0a0f1a" stroke="#85c9bd" strokeWidth="2" />
-                  <circle cx="25" cy="40" r="6" fill="#85c9bd" />
-                  <text x="45" y="45" fill="#E5E7EB" fontFamily="sans-serif" fontWeight="600" fontSize="14">
-                    Webhook Event
-                  </text>
-                </g>
+                    {/* Output handle */}
+                    <div
+                      className="absolute rounded-full bg-[#3a3b48] border-2 border-[#4B5563]"
+                      style={{
+                        width: `${HANDLE_R * 2}px`,
+                        height: `${HANDLE_R * 2}px`,
+                        right: `-${HANDLE_R}px`,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                      }}
+                    />
 
-                <g transform="translate(400, 110)">
-                  <rect width="150" height="80" rx="8" fill="#0a0f1a" stroke="#85c9bd" strokeWidth="2" />
-                  <polygon points="25,35 35,25 45,35 35,45" fill="#85c9bd" />
-                  <text x="55" y="45" fill="#E5E7EB" fontFamily="sans-serif" fontWeight="600" fontSize="14">
-                    Filter: Lead
-                  </text>
-                </g>
+                    {/* Icon */}
+                    <div
+                      className="flex-shrink-0 flex items-center justify-center rounded-md text-lg"
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        background: `${node.color}20`,
+                        border: `1px solid ${node.color}40`,
+                      }}
+                    >
+                      <span>{node.icon}</span>
+                    </div>
 
-                <g transform="translate(400, 310)">
-                  <rect width="150" height="80" rx="8" fill="#0a0f1a" stroke="#85c9bd" strokeWidth="2" />
-                  <polygon points="25,35 35,25 45,35 35,45" fill="#85c9bd" />
-                  <text x="55" y="45" fill="#E5E7EB" fontFamily="sans-serif" fontWeight="600" fontSize="14">
-                    Filter: Agent
-                  </text>
-                </g>
+                    {/* Text */}
+                    <div className="min-w-0">
+                      <p className="text-[#E5E7EB] text-sm font-semibold truncate">
+                        {node.title}
+                      </p>
+                      <p className="text-[#6B7280] text-[11px] truncate">
+                        {node.subtitle}
+                      </p>
+                    </div>
+                  </div>
+                ))}
 
-                <g transform="translate(650, 110)">
-                  <rect width="150" height="80" rx="8" fill="#0a0f1a" stroke="#85c9bd" strokeWidth="2" />
-                  <rect x="20" y="32" width="16" height="16" rx="3" fill="#85c9bd" />
-                  <text x="45" y="45" fill="#E5E7EB" fontFamily="sans-serif" fontWeight="600" fontSize="14">
-                    Sync CRM
-                  </text>
-                </g>
+                {/* Error badge on HubSpot */}
+                <div
+                  className="error-badge absolute opacity-0"
+                  style={{
+                    left: `${nodes[2].x + NODE_W - 10}px`,
+                    top: `${nodes[2].y - 10}px`,
+                    transform: 'scale(0)',
+                    zIndex: 20,
+                  }}
+                >
+                  <div className="bg-[#EF4444] text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg whitespace-nowrap">
+                    ERROR
+                  </div>
+                </div>
 
-                <g transform="translate(650, 310)">
-                  <rect width="150" height="80" rx="8" fill="#0a0f1a" stroke="#85c9bd" strokeWidth="2" />
-                  <rect x="20" y="32" width="16" height="16" rx="3" fill="#85c9bd" />
-                  <text x="45" y="45" fill="#E5E7EB" fontFamily="sans-serif" fontWeight="600" fontSize="14">
-                    Update Portal
-                  </text>
-                </g>
-              </g>
-
-              {/* Status badge */}
-              <g transform="translate(325, 440)">
-                <rect width="200" height="36" rx="18" fill="#85c9bd" fillOpacity="0.15" stroke="#85c9bd" strokeWidth="1" />
-                <circle cx="24" cy="18" r="5" fill="#85c9bd" />
-                <text x="40" y="23" fill="#85c9bd" fontFamily="sans-serif" fontWeight="600" fontSize="13">
-                  All Systems Online
-                </text>
-              </g>
-            </svg>
+                {/* Success badge (centered below) */}
+                <div
+                  className="success-badge absolute opacity-0"
+                  style={{
+                    left: '50%',
+                    bottom: '30px',
+                    transform: 'translateX(-50%) scale(0)',
+                    zIndex: 20,
+                  }}
+                >
+                  <div
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold"
+                    style={{
+                      background: 'rgba(133, 201, 189, 0.15)',
+                      border: '1px solid #85c9bd',
+                      color: '#85c9bd',
+                    }}
+                  >
+                    <span
+                      className="inline-block w-2 h-2 rounded-full"
+                      style={{ background: '#85c9bd' }}
+                    />
+                    Workflow Executed Successfully
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Scale the coordinate space to fill container */}
+      <style>{`
+        @media (min-width: 1px) {
+          [data-node-id] { will-change: transform; }
+        }
+      `}</style>
+
+      {/* Responsive scaling via ResizeObserver is ideal, 
+          but for simplicity we use CSS container queries with a JS approach */}
+      <ScaleSync containerRef={containerRef} />
     </section>
   );
+};
+
+/* ─── Helper: keeps the 900×500 canvas scaled to the container ─── */
+const ScaleSync = ({ containerRef }: { containerRef: React.RefObject<HTMLDivElement> }) => {
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const update = () => {
+      const rect = el.getBoundingClientRect();
+      const scaleX = rect.width / 900;
+      const scaleY = rect.height / 500;
+      const scale = Math.min(scaleX, scaleY);
+      const inner = el.querySelector('.origin-top-left') as HTMLElement | null;
+      if (inner) {
+        inner.style.setProperty('--canvas-scale', String(scale));
+        inner.style.transform = `scale(${scale})`;
+      }
+    };
+
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [containerRef]);
+
+  return null;
 };
 
 export default StorytellingAnimation;

@@ -212,26 +212,12 @@ const HeroSection = () => {
 
   // Intro animation
   useEffect(() => {
-    anime({
-      targets: '.hero-slide-card',
-      opacity: [0, (el: HTMLElement) => {
-        const idx = Number(el.dataset.idx);
-        return getCardState(idx, 0).opacity;
-      }],
-      translateY: [300, (el: HTMLElement) => {
-        const idx = Number(el.dataset.idx);
-        return getCardState(idx, 0).translateY;
-      }],
-      scale: [(el: HTMLElement) => {
-        const idx = Number(el.dataset.idx);
-        return getCardState(idx, 0).scale - 0.1;
-      }, (el: HTMLElement) => {
-        const idx = Number(el.dataset.idx);
-        return getCardState(idx, 0).scale;
-      }],
-      delay: anime.stagger(120),
-      duration: 1200,
-      easing: 'easeOutExpo',
+    // Set cards to initial state immediately (no flash)
+    document.querySelectorAll('.hero-slide-card').forEach((el) => {
+      const idx = Number((el as HTMLElement).dataset.idx);
+      const s = getCardState(idx, 0);
+      (el as HTMLElement).style.opacity = String(s.opacity);
+      (el as HTMLElement).style.transform = `translateY(${s.translateY}px) scale(${s.scale})`;
     });
 
     anime({

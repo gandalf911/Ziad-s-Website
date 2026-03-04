@@ -5,6 +5,7 @@ const SLIDES = [
   {
     num: '01',
     title: 'Custom Web Apps',
+    headline: 'Apps',
     subtitle: 'Architecture & Code',
     description: 'Full-stack applications engineered from the ground up. React, Node, cloud-native — built to scale.',
     tags: ['React', 'TypeScript', 'Cloud'],
@@ -13,6 +14,7 @@ const SLIDES = [
   {
     num: '02',
     title: 'Intelligent Automations',
+    headline: 'Automations',
     subtitle: 'n8n · APIs · Workflows',
     description: 'End-to-end automation pipelines that eliminate manual work and connect your entire stack.',
     tags: ['n8n', 'Webhooks', 'REST'],
@@ -21,6 +23,7 @@ const SLIDES = [
   {
     num: '03',
     title: 'CRM Expertise',
+    headline: 'CRMs',
     subtitle: 'HubSpot · Data Flows',
     description: 'Deep CRM integrations, migration, and optimization. Your data, structured and actionable.',
     tags: ['HubSpot', 'Pipelines', 'Analytics'],
@@ -28,7 +31,8 @@ const SLIDES = [
   },
   {
     num: '04',
-    title: 'Vibe-Coding & UI/UX',
+    title: 'Stunning Websites',
+    headline: 'Websites',
     subtitle: 'Pixel-Perfect Design',
     description: 'Interfaces that feel alive. Motion, typography, and interaction design with obsessive attention to detail.',
     tags: ['Figma', 'Motion', 'Design Systems'],
@@ -48,6 +52,7 @@ const HeroSection = () => {
   const cardsRef = useRef<(HTMLDivElement | null)[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const isAnimating = useRef(false);
+  const isHovering = useRef(false);
   const progressRef = useRef<HTMLDivElement>(null);
 
   const getCardState = useCallback((cardIdx: number, active: number) => {
@@ -171,10 +176,10 @@ const HeroSection = () => {
     return () => el.removeEventListener('wheel', onWheel);
   }, [activeIndex, animateToSlide]);
 
-  // Autoplay
+  // Autoplay (pauses on hover)
   useEffect(() => {
     const interval = setInterval(() => {
-      if (isAnimating.current) return;
+      if (isAnimating.current || isHovering.current) return;
       const next = (activeIndex + 1) % SLIDES.length;
       animateToSlide(next);
     }, 5000);
@@ -277,7 +282,7 @@ const HeroSection = () => {
           What We Build
         </p>
         <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight" style={{ color: '#E5E7EB' }}>
-          Services
+          {SLIDES[activeIndex].headline}
         </h1>
       </div>
 
@@ -305,13 +310,17 @@ const HeroSection = () => {
       </div>
 
       {/* Cards Stack */}
-      <div className="absolute inset-0 flex items-center justify-center">
+      <div
+        className="absolute inset-0 flex items-center justify-center"
+        onMouseEnter={() => { isHovering.current = true; }}
+        onMouseLeave={() => { isHovering.current = false; }}
+      >
         {SLIDES.map((slide, i) => (
           <div
             key={i}
             ref={(el) => { cardsRef.current[i] = el; }}
             data-idx={i}
-            className="hero-slide-card absolute w-[85vw] max-w-[520px] opacity-0"
+            className="hero-slide-card absolute w-[85vw] max-w-[520px]"
             style={{ zIndex: STATES[i]?.zIndex ?? 10 }}
           >
             <div

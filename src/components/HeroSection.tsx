@@ -129,30 +129,56 @@ const HeroSection = () => {
     setTimeout(() => { isAnimating.current = false; }, 850);
   }, [activeIndex, getCardState]);
 
-  // Wheel handler
+  // Wheel handler — allow scroll-through at boundaries
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     let accumulated = 0;
     const THRESHOLD = 60;
+    let boundaryHits = 0;
+    const BOUNDARY_ESCAPE = 2; // after 2 boundary scrolls, let page scroll
 
     const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      if (isAnimating.current) return;
+      if (isAnimating.current) { e.preventDefault(); return; }
 
+      const direction = e.deltaY > 0 ? 1 : -1;
+      const atEnd = direction === 1 && activeIndex === SLIDES.length - 1;
+      const atStart = direction === -1 && activeIndex === 0;
+
+      if (atEnd || atStart) {
+        boundaryHits++;
+        if (boundaryHits >= BOUNDARY_ESCAPE) {
+          // Allow natural scroll — don't prevent default
+          return;
+        }
+        e.preventDefault();
+        return;
+      }
+
+      boundaryHits = 0;
+      e.preventDefault();
       accumulated += e.deltaY;
 
       if (Math.abs(accumulated) >= THRESHOLD) {
-        const direction = accumulated > 0 ? 1 : -1;
         accumulated = 0;
-        const next = (activeIndex + direction + SLIDES.length) % SLIDES.length;
+        const next = activeIndex + direction;
         animateToSlide(next);
       }
     };
 
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
+  }, [activeIndex, animateToSlide]);
+
+  // Autoplay
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (isAnimating.current) return;
+      const next = (activeIndex + 1) % SLIDES.length;
+      animateToSlide(next);
+    }, 5000);
+    return () => clearInterval(interval);
   }, [activeIndex, animateToSlide]);
 
   // Touch handler

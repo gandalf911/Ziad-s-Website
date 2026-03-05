@@ -1,6 +1,5 @@
 import DataStreamOverlay from '@/components/DataStreamOverlay';
-import HeroSection from '@/components/HeroSection';
-import FeaturesSection from '@/components/FeaturesSection';
+import ServicesStack from '@/components/ServicesStack';
 import StorytellingAnimation from '@/components/StorytellingAnimation';
 import ProcessSection from '@/components/ProcessSection';
 import AboutSection from '@/components/AboutSection';
@@ -11,8 +10,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background overflow-x-hidden relative">
       <DataStreamOverlay />
-      <HeroSection />
-      <FeaturesSection />
+      <ServicesStack />
       <StorytellingAnimation />
       <ProcessSection />
       <AboutSection />

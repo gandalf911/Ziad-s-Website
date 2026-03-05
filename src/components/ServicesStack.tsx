@@ -2,12 +2,12 @@ import { useRef } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useGSAP } from '@gsap/react';
-import { Code, Workflow, Database, ArrowDown } from 'lucide-react';
+import { Code, Workflow, Database, Paintbrush, ArrowDown } from 'lucide-react';
 
 gsap.registerPlugin(ScrollTrigger);
 
 /* ═══════════════════════════════════════════════════════════
-   Section data — 4 full-screen stacking panels
+   Section data — 5 full-screen stacking panels
    ═══════════════════════════════════════════════════════════ */
 const SECTIONS = [
   {
@@ -51,6 +51,17 @@ const SECTIONS = [
     accent: '#8B5CF6',
     icon: Database,
     tags: ['HubSpot', 'Pipelines', 'Migration', 'Analytics', 'Custom API'],
+  },
+  {
+    id: 'design',
+    bg: '#161722',
+    label: '04 — DESIGN',
+    heading: ['Web', 'Design'],
+    description:
+      'Pixel-perfect interfaces with obsessive attention to typography, motion, and interaction. We craft visual experiences that feel inevitable.',
+    accent: '#EC4899',
+    icon: Paintbrush,
+    tags: ['UI/UX', 'Figma', 'Motion Design', 'Responsive', 'Branding'],
   },
 ];
 

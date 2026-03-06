@@ -7,8 +7,11 @@ import { Code, Workflow, Database, Paintbrush, ArrowDown } from 'lucide-react';
 gsap.registerPlugin(ScrollTrigger);
 
 /* ═══════════════════════════════════════════════════════════
-   Section data — 5 full-screen stacking panels
+   Stacked Folder — each card pins with a visible "tab"
+   of the previous card peeking above it
    ═══════════════════════════════════════════════════════════ */
+const TAB_HEIGHT = 60; // px — visible tab strip per card
+
 const SECTIONS = [
   {
     id: 'hero',
@@ -77,10 +80,10 @@ const ServicesStack = () => {
       const sections = sectionsRef.current.filter(Boolean) as HTMLElement[];
 
       sections.forEach((section, index) => {
-        // Pin every section so the next one scrolls over it
+        // Pin each section with an offset so previous tabs remain visible
         ScrollTrigger.create({
           trigger: section,
-          start: 'top top',
+          start: () => `top ${index * TAB_HEIGHT}px`,
           pin: true,
           pinSpacing: false,
         });
@@ -96,7 +99,7 @@ const ServicesStack = () => {
             scrollTrigger: {
               trigger: section,
               start: 'top bottom',
-              end: 'top top',
+              end: () => `top ${index * TAB_HEIGHT}px`,
               scrub: 1,
             },
           });
@@ -114,10 +117,12 @@ const ServicesStack = () => {
           ref={(el) => {
             sectionsRef.current[i] = el;
           }}
-          className="relative h-screen w-full overflow-hidden"
+          className="relative w-full overflow-hidden"
           style={{
+            height: `calc(100vh - ${i * TAB_HEIGHT}px)`,
             background: section.bg,
             boxShadow: i > 0 ? '0 -8px 50px rgba(0,0,0,0.7)' : 'none',
+            borderTop: i > 0 ? `1px solid ${section.accent}4d` : 'none',
             transformOrigin: 'center top',
           }}
         >
@@ -140,18 +145,28 @@ const ServicesStack = () => {
             }}
           />
 
-          {/* Top edge highlight for stacking cards */}
+          {/* ── Tab label — pinned to top so it's visible as the tab strip ── */}
           {i > 0 && (
             <div
-              className="absolute top-0 left-0 right-0 h-px z-20"
-              style={{
-                background: `linear-gradient(90deg, transparent 10%, ${section.accent}30, transparent 90%)`,
-              }}
-            />
+              className="absolute top-0 left-0 right-0 z-30 px-8 sm:px-16 lg:px-24"
+              style={{ height: `${TAB_HEIGHT}px` }}
+            >
+              <div className="h-full flex items-center max-w-[1400px] mx-auto">
+                <p
+                  className="text-[10px] sm:text-[11px] tracking-[0.4em] uppercase font-medium"
+                  style={{ color: section.accent }}
+                >
+                  {section.label}
+                </p>
+              </div>
+            </div>
           )}
 
           {/* ── Content ── */}
-          <div className="relative z-10 h-full flex flex-col justify-center px-8 sm:px-16 lg:px-24 max-w-[1400px] mx-auto">
+          <div
+            className="relative z-10 h-full flex flex-col justify-center px-8 sm:px-16 lg:px-24 max-w-[1400px] mx-auto"
+            style={{ paddingTop: i > 0 ? `${TAB_HEIGHT}px` : undefined }}
+          >
             {i === 0 ? (
               /* ════════════════════════════════════
                  HERO — Section 1
@@ -199,17 +214,11 @@ const ServicesStack = () => {
               </>
             ) : (
               /* ════════════════════════════════════
-                 SERVICE SECTIONS — 2, 3, 4
+                 SERVICE SECTIONS
                  ════════════════════════════════════ */
               <div className="flex items-start gap-12 lg:gap-20 flex-col lg:flex-row">
                 {/* Left column — Title & tags */}
                 <div className="flex-1 min-w-0">
-                  <p
-                    className="text-[10px] sm:text-[11px] tracking-[0.4em] uppercase mb-6 font-medium"
-                    style={{ color: section.accent }}
-                  >
-                    {section.label}
-                  </p>
                   <h2
                     className="text-[clamp(3rem,8vw,7.5rem)] font-black tracking-[-0.04em] leading-[0.88]"
                     style={{ color: '#E5E7EB' }}
@@ -240,7 +249,7 @@ const ServicesStack = () => {
                 </div>
 
                 {/* Right column — Icon, description, accent line */}
-                <div className="lg:max-w-md lg:pt-16">
+                <div className="lg:max-w-md lg:pt-8">
                   {'icon' in section && section.icon && (
                     <section.icon
                       className="w-8 h-8 mb-6"
@@ -265,8 +274,7 @@ const ServicesStack = () => {
         </section>
       ))}
 
-      {/* Spacer — gives the last pinned section a full viewport of
-          scroll distance before the next page section appears */}
+      {/* Spacer — gives the last pinned section breathing room */}
       <div className="h-screen w-full" style={{ background: SECTIONS[SECTIONS.length - 1].bg }} />
     </main>
   );

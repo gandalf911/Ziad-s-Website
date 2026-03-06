@@ -99,9 +99,18 @@ const ProcessSection = () => {
           </div>
         </div>
 
-        {/* 3D Sphere (reused component) */}
-        <div className="relative h-[500px] hidden lg:block sticky top-32">
-          <Hero3DScene sphereScale={0.9} sphereOpacity={0.15} />
+        {/* 3D Sphere — circular container, no rectangular frame */}
+        <div
+          className="hidden lg:block sticky top-24"
+          style={{
+            width: '600px',
+            height: '600px',
+            borderRadius: '50%',
+            overflow: 'hidden',
+            position: 'relative',
+          }}
+        >
+          <Hero3DScene sphereScale={1} sphereOpacity={0.35} />
         </div>
       </div>
     </section>

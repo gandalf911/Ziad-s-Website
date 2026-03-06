@@ -167,7 +167,6 @@ function FluidCore({ scale = 1, opacity = 0.8 }: { scale?: number; opacity?: num
 
 /* ═══════════════════════════════════════════════════════════
    Canvas wrapper
-   Radial CSS mask eliminates the hard rectangular "frame"
    ═══════════════════════════════════════════════════════════ */
 interface Hero3DSceneProps {
   className?: string;
@@ -190,9 +189,6 @@ const Hero3DScene = ({
         left: 0,
         width: '100%',
         height: '100%',
-        // Soft radial mask — fades edges to transparent, no hard rectangular boundary
-        mask: 'radial-gradient(ellipse 75% 75% at center, black 50%, transparent 100%)',
-        WebkitMask: 'radial-gradient(ellipse 75% 75% at center, black 50%, transparent 100%)',
       }}
       gl={{ antialias: true, alpha: true }}
     >

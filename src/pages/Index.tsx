@@ -1,4 +1,3 @@
-import DataStreamOverlay from '@/components/DataStreamOverlay';
 import ServicesStack from '@/components/ServicesStack';
 import StorytellingAnimation from '@/components/StorytellingAnimation';
 import ProcessSection from '@/components/ProcessSection';
@@ -9,13 +8,16 @@ import Footer from '@/components/Footer';
 const Index = () => {
   return (
     <div className="min-h-screen bg-background overflow-x-hidden relative">
-      <DataStreamOverlay />
       <ServicesStack />
-      <StorytellingAnimation />
-      <ProcessSection />
-      <AboutSection />
-      <ContactSection />
-      <Footer />
+      {/* Opaque wrapper sits ABOVE the pinned ServicesStack sections
+          so their dot-grid backgrounds don't bleed through */}
+      <div className="relative z-10 bg-background">
+        <StorytellingAnimation />
+        <ProcessSection />
+        <AboutSection />
+        <ContactSection />
+        <Footer />
+      </div>
     </div>
   );
 };
